@@ -7,6 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.time.*;
 
 /*
  Barman Thread class.
@@ -20,6 +21,7 @@ public class Barman extends Thread {
 	int schedAlg =0;
 	int q=10000; //really big if not set, so FCFS
 	private int switchTime;
+	//long time = System.nanoTime();
 	
 	
 	Barman(  CountDownLatch startSignal,int sAlg) {
