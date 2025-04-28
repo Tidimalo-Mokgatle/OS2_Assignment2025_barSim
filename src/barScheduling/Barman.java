@@ -55,6 +55,7 @@ public class Barman extends Thread {
 					currentOrder=orderQueue.take();
 					System.out.println("---Barman preparing drink for patron "+ currentOrder.toString());
 					sleep(currentOrder.getExecutionTime()); //processing order (="CPU burst")
+					// code that it adds all thr times to make the drink
 					System.out.println("---Barman has made drink for patron "+ currentOrder.toString());
 					currentOrder.orderDone();
 					sleep(switchTime);//cost for switching orders

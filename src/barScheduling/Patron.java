@@ -53,8 +53,11 @@ public class Patron extends Thread {
 				drinksOrder[i].waitForOrder();
 				System.out.println("Drinking patron " + drinksOrder[i].toString());
 				sleep(drinksOrder[i].getImbibingTime()); //drinking drink = "IO"
+
+				//**Patron finishes drink */ = turnaround time
 			}
 
+			//* Patron finishes last  */
 			System.out.println("Patron "+ this.ID + " completed ");
 			
 		} catch (InterruptedException e1) {  //do nothing
