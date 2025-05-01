@@ -1,12 +1,8 @@
 //M. M. Kuttel 2025 mkuttel@gmail.com
 package barScheduling;
 
-
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
 
 /*class for the patrons at the bar*/
 
@@ -15,9 +11,11 @@ public class Patron extends Thread {
 	private Random random;// for variation in Patron behaviour
 	private CountDownLatch startSignal; //all start at once, actually shared
 	private Barman theBarman; //the Barman is actually shared though
-	private long patronArrivalTime; //real system time of arrival
-	private long[] drinkOrderPlacedTimes; //real times when orders are placed
-	private long[] drinkReceivedTimes;   //real times when drinks are received
+
+	//private ArrayList<Long> patronArrivalTimes = new ArrayList<>(); //time of patron arrival
+	//private ArrayList<Long> drinkReceivedTimes = new ArrayList<>(); //time to patron receives their drink
+	//private ArrayList<Long> drinkingTimes = new ArrayList<>(); //time to drink - I/O 
+	//private ArrayList<Long> completionTimes = new ArrayList<>(); //time all five drinks have been placed and completed
 
 	private int ID; //thread ID 
 	private int numberOfDrinks;
@@ -30,8 +28,6 @@ public class Patron extends Thread {
 		this.startSignal=startSignal;
 		this.theBarman=aBarman;
 		this.numberOfDrinks=5; // number of drinks is fixed
-		this.drinkOrderPlacedTimes = new long[numberOfDrinks];
-		this.drinkReceivedTimes = new long[numberOfDrinks];
 		drinksOrder = new DrinkOrder[numberOfDrinks];
 		if (seed>0) random = new Random(seed);// for consistent Patron behaviour
 		else random = new Random();
@@ -50,28 +46,33 @@ public class Patron extends Thread {
 			System.out.println("+new thirsty Patron "+ this.ID +" arrived"); //Patron has actually arrived
 			//End do not change
 
-			//Get patron arrival time 
-			patronArrivalTime = System.currentTimeMillis();
-
 			
 	        for(int i=0;i<numberOfDrinks;i++) {
-	        	drinksOrder[i]=new DrinkOrder(this.ID); //order a drink (=CPU burst)	
-				
-				//Get time that the patron places their order
-				//drinkOrderPlacedTimes[i] = System.currentTimeMillis();
 
-	        	//drinksOrder[i]=new DrinkOrder(this.ID,i); //fixed drink order (=CPU burst), useful for testing
+	        	//drinksOrder[i]=new DrinkOrder(this.ID); //order a drink (=CPU burst)	
+
+				//Store patron arrival time 
+				//patronArrivalTimes.add(System.currentTimeMillis());
+
+	        	drinksOrder[i]=new DrinkOrder(this.ID,i); //fixed drink order (=CPU burst), useful for testing
 				System.out.println("Order placed by " + drinksOrder[i].toString()); //output in standard format  - do not change this
 				theBarman.placeDrinkOrder(drinksOrder[i]);
 				drinksOrder[i].waitForOrder();
+
+				//r = time Patron receives drink back
+				//drinkReceivedTimes.add(System.currentTimeMillis());
+
 				System.out.println("Drinking patron " + drinksOrder[i].toString());
+
 				sleep(drinksOrder[i].getImbibingTime()); //drinking drink = "IO"
 
-				//**Patron finishes drink */ = turnaround time
+				//f = Patron finishes drink 
+
+				// I/O = f-r
 			}
 
-			//Get completion time for a patron 
-			//
+			//Completion time for a patron (last drink received)
+			
 			System.out.println("Patron "+ this.ID + " completed ");
 			
 		} catch (InterruptedException e1) {  //do nothing

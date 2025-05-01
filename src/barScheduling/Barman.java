@@ -9,6 +9,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.time.*;
 
+//Additional imports
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.io.IOException;
+
 /*
  Barman Thread class.
  */
@@ -22,6 +29,13 @@ public class Barman extends Thread {
 	int q=10000; //really big if not set, so FCFS
 	private int switchTime;
 	//long time = System.nanoTime();
+
+	private Map<DrinkOrder, Long> startTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder, Long> addedTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder, Long> removedTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder, Long> waitingTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder, Long> endTimes = new ConcurrentHashMap<>();
+
 	
 	
 	Barman(  CountDownLatch startSignal,int sAlg) {
@@ -40,10 +54,15 @@ public class Barman extends Thread {
 
 	public void placeDrinkOrder(DrinkOrder order) throws InterruptedException {
         orderQueue.put(order);
+		//Order placed on the queue
+		addedTimes.put(order, System.currentTimeMillis());
+		
     }
 	
 	public void run() {
 		int interrupts=0;
+		long waiting=0; //calculates waiting time on the queue
+
 		try {
 			DrinkOrder currentOrder;
 			
@@ -53,11 +72,23 @@ public class Barman extends Thread {
 			if ((schedAlg==0)||(schedAlg==1)) { //FCFS and non-preemptive SJF
 				while(true) {
 					currentOrder=orderQueue.take();
+					//Order taken off the queue
+					removedTimes.put(currentOrder, System.currentTimeMillis());
+					//Add waiting time to total waiting time for this order
+					waiting=waiting+(removedTimes.get(currentOrder)-addedTimes.get(currentOrder)); 
+					waitingTimes.put(currentOrder, waiting);
+
 					System.out.println("---Barman preparing drink for patron "+ currentOrder.toString());
 					sleep(currentOrder.getExecutionTime()); //processing order (="CPU burst")
-					// code that it adds all thr times to make the drink
+
+					// code that it adds all the times to make the drink
+
 					System.out.println("---Barman has made drink for patron "+ currentOrder.toString());
 					currentOrder.orderDone();
+
+					//Record when the order finishes
+					endTimes.put(currentOrder, System.currentTimeMillis());
+
 					sleep(switchTime);//cost for switching orders
 				}
 			}
@@ -70,6 +101,13 @@ public class Barman extends Thread {
 					System.out.println("---Barman waiting for next order ");
 					currentOrder=orderQueue.take();
 
+					//Order taken off the queue for RR
+					removedTimes.put(currentOrder, System.currentTimeMillis());
+					//Add waiting time to total waiting time for this order
+					waiting=waiting+(removedTimes.get(currentOrder)-addedTimes.get(currentOrder)); 
+					waitingTimes.put(currentOrder, waiting);
+
+
 					System.out.println("---Barman preparing drink for patron "+ currentOrder.toString() );
 					burst=currentOrder.getExecutionTime();
 					if(burst<=q) { //within the quantum
@@ -77,7 +115,8 @@ public class Barman extends Thread {
 						System.out.println("---Barman has made drink for patron "+ currentOrder.toString());
 						currentOrder.orderDone();
 
-						// *** Patron gets their drink (long with nano time)
+						//Order has completed 
+						endTimes.put(currentOrder, System.currentTimeMillis());
 					}
 					else {
 						sleep(q);
@@ -86,12 +125,40 @@ public class Barman extends Thread {
 						interrupts++;
 						currentOrder.setRemainingPreparationTime(timeLeft);
 						orderQueue.put(currentOrder); //put back on queue at end
+						//Order is put back onto the queue
+						addedTimes.put(currentOrder, System.currentTimeMillis());
+
 					}
 					sleep(switchTime);//switching orders
+					Long startTime = startTimes.get(currentOrder);
+					Long endTime = endTimes.get(currentOrder);
+					//Write results to a file 
+			
+					if (startTime!= null && endTime!= null) {
+
+						long turnaroundTime = endTime-startTime;
+						long totalWaitingTime = waitingTimes.get(currentOrder);
+
+					try (PrintWriter out = new PrintWriter(new FileWriter("results.csv", true))) {
+						out.println(totalWaitingTime+","+turnaroundTime);
+					} 
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+					
+					} 
+					
+					else {
+						System.out.println("Missing timestamp(s) for " + currentOrder);
+					};
+
 				}
+			
 			}
 				
-		} catch (InterruptedException e1) {
+		} 
+		
+		catch (InterruptedException e1) {
 			System.out.println("---Barman is packing up ");
 			System.out.println("---number interrupts="+interrupts);
 		}
