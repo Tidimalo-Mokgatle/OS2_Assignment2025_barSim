@@ -7,7 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.time.*;
+import java.util.ArrayList;
 
 //Additional imports
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,12 +30,12 @@ public class Barman extends Thread {
 	private int switchTime;
 	//long time = System.nanoTime();
 
-	public Map<DrinkOrder, Long> startTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder, Long> addedTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder, Long> removedTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder, Long> waitingTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder, Long> endTimes = new ConcurrentHashMap<>();
-
+	public Map<DrinkOrder,Long> startTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder,Long> addedTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder,Long> removedTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder,Long> waitingTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder,Long> turnaroundTimes = new ConcurrentHashMap<>();
+	private Map<DrinkOrder,Long> endTimes = new ConcurrentHashMap<>();
 	
 	
 	Barman(  CountDownLatch startSignal,int sAlg) {
@@ -58,6 +58,28 @@ public class Barman extends Thread {
 		addedTimes.put(order, System.currentTimeMillis());
 		
     }
+
+	public long averageWaitingTime(Map<DrinkOrder,Long> waitingTimes){
+		
+		int total=0;
+
+		for (long time:waitingTimes.values()){
+			total+=time;
+		}
+
+		return total;
+	}
+
+	public long averageTurnaroundTime(Map<DrinkOrder,Long> turnaroundTimes){
+		
+		int total=0;
+
+		for (long time:turnaroundTimes.values()){
+			total+=time;
+		}
+
+		return total;
+	}
 	
 	public void run() {
 		int interrupts=0;
@@ -95,6 +117,8 @@ public class Barman extends Thread {
 			else { // RR 
 				int burst=0;
 				int timeLeft=0;
+				
+
 				System.out.println("---Barman started with q= "+q);
 
 				while(true) {
@@ -137,10 +161,12 @@ public class Barman extends Thread {
 					if (startTime!= null && endTime!= null) {
 
 						long turnaroundTime = endTime-startTime;
-						long totalWaitingTime = waitingTimes.get(currentOrder);
+						turnaroundTimes.put(currentOrder, turnaroundTime);
 
+						long totalWaitingTime = waitingTimes.get(currentOrder);
+						
 					try (PrintWriter out = new PrintWriter(new FileWriter("results.csv", true))) {
-						out.println(totalWaitingTime+","+turnaroundTime);
+						out.println(currentOrder.toString()+","+totalWaitingTime+","+turnaroundTime);
 					} 
 					catch (IOException e) {
 						e.printStackTrace();
@@ -152,6 +178,7 @@ public class Barman extends Thread {
 						System.out.println("Missing timestamp(s) for " + currentOrder);
 					};
 
+					
 				}
 			
 			}
@@ -162,7 +189,20 @@ public class Barman extends Thread {
 			System.out.println("---Barman is packing up ");
 			System.out.println("---number interrupts="+interrupts);
 		}
+
+		finally{
+			try (PrintWriter out = new PrintWriter(new FileWriter("results.csv", true))) {
+				long avgWaiting = averageWaitingTime(waitingTimes);
+				long avgTurnaround = averageTurnaroundTime(turnaroundTimes);
+				out.printf("Average Waiting Time,%.2f\n", (double) avgWaiting / waitingTimes.size());
+				out.printf("Average Turnaround Time,%.2f\n", (double) avgTurnaround / turnaroundTimes.size());
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
+
+	
 }
 
 
