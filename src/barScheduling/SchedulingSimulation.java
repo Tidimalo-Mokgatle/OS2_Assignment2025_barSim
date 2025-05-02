@@ -11,8 +11,8 @@ import java.util.concurrent.CountDownLatch;
 
 public class SchedulingSimulation {
 	static int noPatrons=10; //number of customers - default value if not provided on command line
-	static int sched=0; //default scheduling algorithm, 0= FCFS, 1=SJF, 2=RR
-	static int q=10000, s=0;
+	static int sched=2; //default scheduling algorithm, 0= FCFS, 1=SJF, 2=RR
+	static int q=60, s=0;
 	static long seed=0;
 	static CountDownLatch startSignal;	
 	static Patron[] patrons; // array for customer threads

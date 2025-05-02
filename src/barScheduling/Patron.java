@@ -56,7 +56,14 @@ public class Patron extends Thread {
 
 	        	drinksOrder[i]=new DrinkOrder(this.ID,i); //fixed drink order (=CPU burst), useful for testing
 				System.out.println("Order placed by " + drinksOrder[i].toString()); //output in standard format  - do not change this
+				
+				/////
+				Long time = System.currentTimeMillis();
+				theBarman.startTimes.put(drinksOrder[i], time);
+				////
 				theBarman.placeDrinkOrder(drinksOrder[i]);
+				//Order is first put on 
+
 				drinksOrder[i].waitForOrder();
 
 				//r = time Patron receives drink back

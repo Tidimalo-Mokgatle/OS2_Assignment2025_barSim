@@ -30,7 +30,7 @@ public class Barman extends Thread {
 	private int switchTime;
 	//long time = System.nanoTime();
 
-	private Map<DrinkOrder, Long> startTimes = new ConcurrentHashMap<>();
+	public Map<DrinkOrder, Long> startTimes = new ConcurrentHashMap<>();
 	private Map<DrinkOrder, Long> addedTimes = new ConcurrentHashMap<>();
 	private Map<DrinkOrder, Long> removedTimes = new ConcurrentHashMap<>();
 	private Map<DrinkOrder, Long> waitingTimes = new ConcurrentHashMap<>();
