@@ -11,19 +11,14 @@ public class Patron extends Thread {
 	private Random random;// for variation in Patron behaviour
 	private CountDownLatch startSignal; //all start at once, actually shared
 	private Barman theBarman; //the Barman is actually shared though
-
-	//private ArrayList<Long> patronArrivalTimes = new ArrayList<>(); //time of patron arrival
-	//private ArrayList<Long> drinkReceivedTimes = new ArrayList<>(); //time to patron receives their drink
-	//private ArrayList<Long> drinkingTimes = new ArrayList<>(); //time to drink - I/O 
-	//private ArrayList<Long> completionTimes = new ArrayList<>(); //time all five drinks have been placed and completed
-
 	private int ID; //thread ID 
 	private int numberOfDrinks;
-
+	private long responseTime;
 
 	private DrinkOrder [] drinksOrder;
-	
-	Patron( int ID,  CountDownLatch startSignal, Barman aBarman, long seed) {
+	public MetricTracker tracker;
+
+	Patron(MetricTracker tracker, int ID,  CountDownLatch startSignal, Barman aBarman, long seed) {
 		this.ID=ID;
 		this.startSignal=startSignal;
 		this.theBarman=aBarman;
@@ -31,6 +26,15 @@ public class Patron extends Thread {
 		drinksOrder = new DrinkOrder[numberOfDrinks];
 		if (seed>0) random = new Random(seed);// for consistent Patron behaviour
 		else random = new Random();
+		this.tracker = tracker;	
+	}
+
+	public int getPatronID(){
+		return ID;
+	}
+
+	public long getResponse(){
+		return responseTime;
 	}
 	
 	
@@ -49,40 +53,38 @@ public class Patron extends Thread {
 			
 	        for(int i=0;i<numberOfDrinks;i++) {
 
-	        	//drinksOrder[i]=new DrinkOrder(this.ID); //order a drink (=CPU burst)	
-
-				//Store patron arrival time 
-				//patronArrivalTimes.add(System.currentTimeMillis());
-
 	        	drinksOrder[i]=new DrinkOrder(this.ID,i); //fixed drink order (=CPU burst), useful for testing
 				System.out.println("Order placed by " + drinksOrder[i].toString()); //output in standard format  - do not change this
 				
 				Long time = System.currentTimeMillis();
 
 				//Patron places first order
-				theBarman.startTimes.put(drinksOrder[i], time);
-				
+				tracker.startTimes.put(drinksOrder[i], time);
+				tracker.addOrder(drinksOrder[i]);
 				theBarman.placeDrinkOrder(drinksOrder[i]);
 
 				drinksOrder[i].waitForOrder();
-
-				//drinkReceivedTimes.add(System.currentTimeMillis());
-
+				
 				System.out.println("Drinking patron " + drinksOrder[i].toString());
 
-				sleep(drinksOrder[i].getImbibingTime()); //drinking drink = "IO"
+				//Records the respose time if it is the first drink
+				if(i==1){
+			
+					responseTime=System.currentTimeMillis()-tracker.getStartTime(drinksOrder[i]);
+				}
 
-				//f = Patron finishes drink 
+				sleep(drinksOrder[i].getImbibingTime()); //drinking drink = "IO"
+				tracker.burstTimes.put(drinksOrder[i], System.currentTimeMillis()); //adds burst times 
+				tracker.updateBurst(drinksOrder[i]);
 
 			}
 
 			//Completion time for a patron (last drink received)
-			
 			System.out.println("Patron "+ this.ID + " completed ");
+
 			
 		} catch (InterruptedException e1) {  //do nothing
 		}
 }
 }
 	
-

@@ -3,21 +3,24 @@
 package barScheduling;
 // the main class, starts all threads and the simulation
 
-
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 
 
+
 public class SchedulingSimulation {
 	static int noPatrons=10; //number of customers - default value if not provided on command line
-	static int sched=2; //default scheduling algorithm, 0= FCFS, 1=SJF, 2=RR
+	static int sched=0; //default scheduling algorithm, 0= FCFS, 1=SJF, 2=RR
 	static int q=60, s=0;
 	static long seed=0;
 	static CountDownLatch startSignal;	
 	static Patron[] patrons; // array for customer threads
 	static Barman Sarah;
 
+	public static MetricTracker tracker = new MetricTracker();
 	
 
 	public static void main(String[] args) throws InterruptedException, IOException {
@@ -33,13 +36,13 @@ public class SchedulingSimulation {
 		startSignal= new CountDownLatch(noPatrons+2);//Barman and patrons and main method must be ready
 		
 		//create barman
-        Sarah= new Barman(startSignal,sched,q,s); 
+        Sarah= new Barman(tracker, startSignal,sched,q,s); 
      	Sarah.start();
   
 	    //create all the patrons, who all need access to Barman
 		patrons = new Patron[noPatrons];
 		for (int i=0;i<noPatrons;i++) {
-			patrons[i] = new Patron(i,startSignal,Sarah,seed);
+			patrons[i] = new Patron(tracker,i,startSignal,Sarah,seed);
 			patrons[i].start();
 		}
 		
@@ -58,16 +61,27 @@ public class SchedulingSimulation {
 		  case 2:
 			  System.out.println("-------------- and RR scheduling with q="+q+"-------------");
 		}
-		
 			
       	startSignal.countDown(); //main method ready
       	
       	//wait till all patrons done, otherwise race condition on the file closing!
-      	for (int i=0;i<noPatrons;i++)  patrons[i].join();
+	
+      	for (int i=0;i<noPatrons;i++){
+			patrons[i].join();
+
+			//Prints all patrons with their response times to a file 
+			try (PrintWriter out = new PrintWriter(new FileWriter("responseTimes.csv", true))) {
+			out.println(patrons[i].getPatronID()+","+patrons[i].getResponse());
+		}
+		}
+
+		//Writes all averages to a file 
+		tracker.writeAverages();
 
     	System.out.println("------Waiting for Barman------");
     	Sarah.interrupt();   //tell Barman to close up
     	Sarah.join(); //wait till she has
       	System.out.println("------Bar closed------");
+
  	}
 }

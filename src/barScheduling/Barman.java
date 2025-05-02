@@ -7,14 +7,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.ArrayList;
-
-//Additional imports
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.io.IOException;
 
 /*
  Barman Thread class.
@@ -30,14 +22,9 @@ public class Barman extends Thread {
 	private int switchTime;
 	//long time = System.nanoTime();
 
-	public Map<DrinkOrder,Long> startTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder,Long> addedTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder,Long> removedTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder,Long> waitingTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder,Long> turnaroundTimes = new ConcurrentHashMap<>();
-	private Map<DrinkOrder,Long> endTimes = new ConcurrentHashMap<>();
-	
-	
+	MetricTracker tracker;
+
+
 	Barman(  CountDownLatch startSignal,int sAlg) {
 		//which scheduling algorithm to use
 		this.schedAlg=sAlg;
@@ -46,44 +33,20 @@ public class Barman extends Thread {
 	    this.startSignal=startSignal;
 	}
 	
-	Barman(  CountDownLatch startSignal,int sAlg,int quantum, int sTime) { //overloading constructor for RR which needs q
+	Barman( MetricTracker tracker, CountDownLatch startSignal,int sAlg,int quantum, int sTime) { //overloading constructor for RR which needs q
 		this(startSignal, sAlg);
 		q=quantum;
 		switchTime=sTime;
+		this.tracker = tracker;
 	}
 
 	public void placeDrinkOrder(DrinkOrder order) throws InterruptedException {
         orderQueue.put(order);
-		//Order placed on the queue
-		addedTimes.put(order, System.currentTimeMillis());
 		
     }
-
-	public long averageWaitingTime(Map<DrinkOrder,Long> waitingTimes){
-		
-		int total=0;
-
-		for (long time:waitingTimes.values()){
-			total+=time;
-		}
-
-		return total;
-	}
-
-	public long averageTurnaroundTime(Map<DrinkOrder,Long> turnaroundTimes){
-		
-		int total=0;
-
-		for (long time:turnaroundTimes.values()){
-			total+=time;
-		}
-
-		return total;
-	}
 	
 	public void run() {
 		int interrupts=0;
-		long waiting=0; //calculates waiting time on the queue
 
 		try {
 			DrinkOrder currentOrder;
@@ -95,11 +58,11 @@ public class Barman extends Thread {
 				while(true) {
 					currentOrder=orderQueue.take();
 					//Order taken off the queue
-					removedTimes.put(currentOrder, System.currentTimeMillis());
-					//Add waiting time to total waiting time for this order
-					waiting=waiting+(removedTimes.get(currentOrder)-addedTimes.get(currentOrder)); 
-					waitingTimes.put(currentOrder, waiting);
+					tracker.removedTimes.put(currentOrder, System.currentTimeMillis());
 
+					//Add waiting time to total waiting time for this order
+					tracker.updateWaiting(currentOrder);
+					
 					System.out.println("---Barman preparing drink for patron "+ currentOrder.toString());
 					sleep(currentOrder.getExecutionTime()); //processing order (="CPU burst")
 
@@ -109,7 +72,10 @@ public class Barman extends Thread {
 					currentOrder.orderDone();
 
 					//Record when the order finishes
-					endTimes.put(currentOrder, System.currentTimeMillis());
+					tracker.endTimes.put(currentOrder, System.currentTimeMillis());
+
+					//Write to file
+					tracker.writeOrder(currentOrder);
 
 					sleep(switchTime);//cost for switching orders
 				}
@@ -126,11 +92,10 @@ public class Barman extends Thread {
 					currentOrder=orderQueue.take();
 
 					//Order taken off the queue for RR
-					removedTimes.put(currentOrder, System.currentTimeMillis());
-					//Add waiting time to total waiting time for this order
-					waiting=waiting+(removedTimes.get(currentOrder)-addedTimes.get(currentOrder)); 
-					waitingTimes.put(currentOrder, waiting);
+					tracker.removedTimes.put(currentOrder, System.currentTimeMillis());
 
+					//Add waiting time to total waiting time for this order				
+					tracker.updateWaiting(currentOrder);
 
 					System.out.println("---Barman preparing drink for patron "+ currentOrder.toString() );
 					burst=currentOrder.getExecutionTime();
@@ -139,8 +104,8 @@ public class Barman extends Thread {
 						System.out.println("---Barman has made drink for patron "+ currentOrder.toString());
 						currentOrder.orderDone();
 
-						//Order has completed 
-						endTimes.put(currentOrder, System.currentTimeMillis());
+						//Order has completed 						
+						tracker.endTimes.put(currentOrder, System.currentTimeMillis());
 					}
 					else {
 						sleep(q);
@@ -149,34 +114,11 @@ public class Barman extends Thread {
 						interrupts++;
 						currentOrder.setRemainingPreparationTime(timeLeft);
 						orderQueue.put(currentOrder); //put back on queue at end
-						//Order is put back onto the queue
-						addedTimes.put(currentOrder, System.currentTimeMillis());
+						//Order is put back onto the queue						
+						tracker.addedTimes.put(currentOrder, System.currentTimeMillis());
 
 					}
 					sleep(switchTime);//switching orders
-					Long startTime = startTimes.get(currentOrder);
-					Long endTime = endTimes.get(currentOrder);
-					//Write results to a file 
-			
-					if (startTime!= null && endTime!= null) {
-
-						long turnaroundTime = endTime-startTime;
-						turnaroundTimes.put(currentOrder, turnaroundTime);
-
-						long totalWaitingTime = waitingTimes.get(currentOrder);
-						
-					try (PrintWriter out = new PrintWriter(new FileWriter("results.csv", true))) {
-						out.println(currentOrder.toString()+","+totalWaitingTime+","+turnaroundTime);
-					} 
-					catch (IOException e) {
-						e.printStackTrace();
-					}
-					
-					} 
-					
-					else {
-						System.out.println("Missing timestamp(s) for " + currentOrder);
-					};
 
 					
 				}
@@ -190,16 +132,7 @@ public class Barman extends Thread {
 			System.out.println("---number interrupts="+interrupts);
 		}
 
-		finally{
-			try (PrintWriter out = new PrintWriter(new FileWriter("results.csv", true))) {
-				long avgWaiting = averageWaitingTime(waitingTimes);
-				long avgTurnaround = averageTurnaroundTime(turnaroundTimes);
-				out.printf("Average Waiting Time,%.2f\n", (double) avgWaiting / waitingTimes.size());
-				out.printf("Average Turnaround Time,%.2f\n", (double) avgTurnaround / turnaroundTimes.size());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+	
 	}
 
 	
